@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0b0d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Gestor de Locações">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <title>Gestor de Locações</title>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <img class="brand-logo" src="logo.jpeg" alt="Batalha's Locações">
+    <div class="top-actions">
+      <button class="icon-btn" id="backupBtn" aria-label="Exportar dados">⇩</button>
+      <label class="icon-btn file-btn" aria-label="Importar dados">⇧<input id="restoreInput" type="file" accept="application/json"></label>
+    </div>
+  </header>
+
+  <main id="screen" class="screen"></main>
+
+  <nav class="bottom-nav" aria-label="Navegação principal">
+    <button data-tab="home" class="nav-btn active"><span>⌂</span><small>Início</small></button>
+    <button data-tab="stock" class="nav-btn"><span>▣</span><small>Estoque</small></button>
+    <button data-tab="rentals" class="nav-btn"><span>▤</span><small>Locações</small></button>
+    <button data-tab="finance" class="nav-btn"><span>R$</span><small>Financeiro</small></button>
+  </nav>
+</div>
+
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <div class="modal-head"><h3 id="modalTitle"></h3><button class="icon-btn" id="closeModal">×</button></div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
+</body>
+</html>
