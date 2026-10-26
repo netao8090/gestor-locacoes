@@ -3,7 +3,10 @@
 .bottom-nav .nav-btn{width:100%;min-width:0;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:4px;padding:7px 2px}
 .bottom-nav .nav-btn span{display:flex;align-items:center;justify-content:center;min-height:25px;line-height:1;font-size:1.3rem}
 .bottom-nav .nav-btn small{display:block;text-align:center;width:100%}
-</style></head><body><div id="app"><header class="topbar"><img class="brand-logo" src="logo.jpeg" alt="Batalha's Locações"><div class="top-actions"><button class="icon-btn" id="backupBtn" aria-label="Exportar dados">⇩</button><label class="icon-btn file-btn" aria-label="Importar dados">⇧<input id="restoreInput" type="file" accept="application/json"></label></div></header><main id="screen" class="screen"></main><nav class="bottom-nav" aria-label="Navegação principal"><button data-tab="home" class="nav-btn active"><span>⌂</span><small>Início</small></button><button data-tab="stock" class="nav-btn"><span>▣</span><small>Estoque</small></button><button data-tab="finance" class="nav-btn"><span>R$</span><small>Financeiro</small></button></nav></div><div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-card"><div class="modal-head"><h3 id="modalTitle"></h3><button class="icon-btn" id="closeModal">×</button></div><div id="modalBody"></div></div></div><script src="app.js?v=7"></script><script>
+</style><script>
+if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(rs=>Promise.all(rs.map(r=>r.unregister()))).catch(()=>{});}
+if('caches' in window){caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('gestor-locacoes-')).map(k=>caches.delete(k)))).catch(()=>{});}
+</script></head><body><div id="app"><header class="topbar"><img class="brand-logo" src="logo.jpeg" alt="Batalha's Locações"><div class="top-actions"><button class="icon-btn" id="backupBtn" aria-label="Exportar dados">⇩</button><label class="icon-btn file-btn" aria-label="Importar dados">⇧<input id="restoreInput" type="file" accept="application/json"></label></div></header><main id="screen" class="screen"></main><nav class="bottom-nav" aria-label="Navegação principal"><button data-tab="home" class="nav-btn active"><span>⌂</span><small>Início</small></button><button data-tab="stock" class="nav-btn"><span>▣</span><small>Estoque</small></button><button data-tab="finance" class="nav-btn"><span>R$</span><small>Financeiro</small></button></nav></div><div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-card"><div class="modal-head"><h3 id="modalTitle"></h3><button class="icon-btn" id="closeModal">×</button></div><div id="modalBody"></div></div></div><script src="app.js?v=8"></script><script>
 // Correções não destrutivas para a versão original.
 const localDate=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const paidAmount=r=>state.payments.filter(p=>p.rentalId===r.id).reduce((s,p)=>s+Number(p.amount||0),0);
@@ -192,4 +195,12 @@ finance=function(){
 };
 closeModal();render();
 
-</script><script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script></body></html>
+</script><script>
+// V8: cliques delegados para evitar perda de eventos após renderização.
+document.addEventListener('click',function(e){
+ const expense=e.target.closest('[data-add-expense]');
+ if(expense){e.preventDefault();e.stopImmediatePropagation();v7ExpenseModal();return}
+ const reset=e.target.closest('#v7ResetButton');
+ if(reset){e.preventDefault();e.stopImmediatePropagation();v7ResetData();return}
+},true);
+</script></body></html>
