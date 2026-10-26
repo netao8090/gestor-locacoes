@@ -1,45 +1,19 @@
-<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#0b0b0d">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Gestor de Locações">
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css">
-  <title>Gestor de Locações</title>
-</head>
-<body>
-<div id="app">
-  <header class="topbar">
-    <img class="brand-logo" src="logo.jpeg" alt="Batalha's Locações">
-    <div class="top-actions">
-      <button class="icon-btn" id="backupBtn" aria-label="Exportar dados">⇩</button>
-      <label class="icon-btn file-btn" aria-label="Importar dados">⇧<input id="restoreInput" type="file" accept="application/json"></label>
-    </div>
-  </header>
-
-  <main id="screen" class="screen"></main>
-
-  <nav class="bottom-nav" aria-label="Navegação principal">
-    <button data-tab="home" class="nav-btn active"><span>⌂</span><small>Início</small></button>
-    <button data-tab="stock" class="nav-btn"><span>▣</span><small>Estoque</small></button>
-    <button data-tab="rentals" class="nav-btn"><span>▤</span><small>Locações</small></button>
-    <button data-tab="finance" class="nav-btn"><span>R$</span><small>Financeiro</small></button>
-  </nav>
-</div>
-
-<div id="modal" class="modal hidden" role="dialog" aria-modal="true">
-  <div class="modal-card">
-    <div class="modal-head"><h3 id="modalTitle"></h3><button class="icon-btn" id="closeModal">×</button></div>
-    <div id="modalBody"></div>
-  </div>
-</div>
-
-<script src="app.js"></script>
-<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script>
-</body>
-</html>
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0b0b0d"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Gestor de Locações"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icons/icon-192.png"><link rel="stylesheet" href="styles.css"><title>Gestor de Locações</title></head><body><div id="app"><header class="topbar"><img class="brand-logo" src="logo.jpeg" alt="Batalha's Locações"><div class="top-actions"><button class="icon-btn" id="backupBtn" aria-label="Exportar dados">⇩</button><label class="icon-btn file-btn" aria-label="Importar dados">⇧<input id="restoreInput" type="file" accept="application/json"></label></div></header><main id="screen" class="screen"></main><nav class="bottom-nav" aria-label="Navegação principal"><button data-tab="home" class="nav-btn active"><span>⌂</span><small>Início</small></button><button data-tab="stock" class="nav-btn"><span>▣</span><small>Estoque</small></button><button data-tab="rentals" class="nav-btn"><span>▤</span><small>Locações</small></button><button data-tab="finance" class="nav-btn"><span>R$</span><small>Financeiro</small></button></nav></div><div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-card"><div class="modal-head"><h3 id="modalTitle"></h3><button class="icon-btn" id="closeModal">×</button></div><div id="modalBody"></div></div></div><script src="app.js"></script><script>
+// Correções não destrutivas para a versão original.
+const localDate=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
+const paidAmount=r=>state.payments.filter(p=>p.rentalId===r.id).reduce((s,p)=>s+Number(p.amount||0),0);
+const pendingAmount=r=>Math.max(0,Number(r.finalTotal||0)-paidAmount(r));
+const reservedItems=(start,end)=>{let tables=0,chairs=0;for(const r of state.rentals){if(r.actualReturn||r.pickup>end||r.returnDate<start)continue;const q=demandFor(r.items||[]);tables+=q.tables;chairs+=q.chairs}return {tables,chairs}};
+gamesAvailable=function(){const used=reservedItems(localDate(),localDate());return Math.max(0,Math.min(sumType('mesa')-used.tables,Math.floor((sumType('cadeira')-used.chairs)/4)))};
+availableForPeriod=function(start,end){const used=reservedItems(start,end);return {tables:Math.max(0,sumType('mesa')-used.tables),chairs:Math.max(0,sumType('cadeira')-used.chairs)}};
+const oldRentalForm=rentalForm;
+rentalForm=function(){oldRentalForm();const f=document.getElementById('rentalForm');if(!f)return;const oldSubmit=f.onsubmit;f.onsubmit=e=>{e.preventDefault();const start=f.pickup.value,end=f.returnDate.value;if(end<start){alert('A devolução não pode ser anterior à retirada.');return}const items=state.products.filter(p=>p.type!=='outro').map(p=>({productId:p.id,qty:Number(f.elements['qty_'+p.id]?.value||0)})).filter(i=>i.qty>0);if(!items.length){alert('Escolha pelo menos um item.');return}const dem=demandFor(items),av=availableForPeriod(start,end);if(dem.tables>av.tables||dem.chairs>av.chairs){alert('Estoque insuficiente neste período. Disponíveis: '+av.tables+' mesas e '+av.chairs+' cadeiras.');return}oldSubmit.call(f,e)};};
+function openRentalDetail(id){const r=state.rentals.find(x=>x.id===id);if(!r)return;openModal('Acompanhar locação',`<div class="form"><div class="card"><div class="name">${esc(r.client)}</div><div class="muted">${fmtDate(r.pickup)} → ${fmtDate(r.returnDate)}</div><div class="price">Total ${brl(r.finalTotal)} · Recebido ${brl(paidAmount(r))} · Falta ${brl(pendingAmount(r))}</div></div><div class="field"><label>Entrega</label><button type="button" class="btn secondary" id="deliveryStatus">${r.delivered?'✓ Entregue':'Marcar como entregue'}</button></div><div class="field"><label>Retirada dos itens</label><button type="button" class="btn secondary" id="pickupStatus">${r.actualReturn?'✓ Recolhido':'Marcar como recolhido'}</button></div><div class="field"><label>Pagamento</label><div class="muted">${pendingAmount(r)===0?'✓ Pago integralmente':brl(pendingAmount(r))+' pendente'}</div>${pendingAmount(r)>0?'<button type="button" class="btn" id="receivePayment">Registrar pagamento</button>':''}</div></div>`);document.getElementById('deliveryStatus').onclick=()=>{r.delivered=!r.delivered;save();render();openRentalDetail(id)};document.getElementById('pickupStatus').onclick=()=>{if(!r.actualReturn&&!confirm('Confirmar recolhimento dos itens e liberação do estoque?'))return;r.actualReturn=r.actualReturn?null:localDate();save();render();openRentalDetail(id)};const b=document.getElementById('receivePayment');if(b)b.onclick=()=>{closeModal();tab='finance';render();const sel=document.querySelector('#payForm [name="rentalId"]');if(sel)sel.value=id}};
+const originalRentals=rentals;
+rentals=function(){const h=originalRentals();return h.replace(/<div class="card"><div class="row">/g,'<div class="card"><div class="row">').replace(/<\/span><\/div><\/div><\/div>/g,'</span></div></div></div>')+`<div class="section"><h3>Acompanhar locações</h3><div class="list">${state.rentals.slice().reverse().map(r=>`<div class="card"><div class="row"><div><div class="name">${esc(r.client)}</div><div class="muted">${r.delivered?'Entregue':'Entrega pendente'} · ${r.actualReturn?'Recolhido':'Aguardando retirada'} · ${pendingAmount(r)===0?'Pago':brl(pendingAmount(r))+' pendente'}</div></div><button class="small-btn" data-open-rental="${esc(r.id)}">Acompanhar</button></div></div>`).join('')}</div></div>`};
+finance=function(){const m=localDate().slice(0,7),rec=state.payments.filter(p=>p.date?.startsWith(m)).reduce((s,p)=>s+Number(p.amount||0),0),exp=state.expenses.filter(p=>p.date?.startsWith(m)).reduce((s,p)=>s+Number(p.amount||0),0),ar=state.rentals.reduce((s,r)=>s+pendingAmount(r),0),unlinked=state.payments.filter(p=>!p.rentalId);return `<section class="hero"><div><div class="title">Financeiro</div><div class="sub">Mês atual · ${m}</div></div><button class="btn" data-add-expense>+ Despesa</button></section><div class="grid"><div class="card metric"><div class="label">Recebido</div><div class="num">${brl(rec)}</div></div><div class="card metric"><div class="label">A receber</div><div class="num">${brl(ar)}</div></div><div class="card metric"><div class="label">Despesas</div><div class="num">${brl(exp)}</div></div><div class="card metric"><div class="label">Resultado</div><div class="num">${brl(rec-exp)}</div></div></div><div class="section"><h3>Registrar pagamento de locação</h3><div class="card"><form id="payForm" class="form"><div class="field"><label>Locação</label><select name="rentalId" required><option value="">Selecione a locação</option>${state.rentals.filter(r=>pendingAmount(r)>0).map(r=>`<option value="${esc(r.id)}">${esc(r.client)} — falta ${brl(pendingAmount(r))}</option>`).join('')}</select></div><div class="two"><div class="field"><label>Data</label><input name="date" type="date" value="${localDate()}" required></div><div class="field"><label>Valor recebido</label><input name="amount" type="number" step="0.01" min="0.01" required></div></div><div class="field"><label>Observação</label><input name="note" placeholder="Ex.: pagamento na entrega"></div><button class="btn">Salvar recebimento</button></form></div></div>${unlinked.length?`<div class="section"><h3>Vincular recebimentos antigos</h3><div class="hint">Use esta opção para pagamentos já registrados. Não gera nova entrada no caixa.</div><div class="card"><form id="linkPaymentForm" class="form"><div class="field"><label>Pagamento existente</label><select name="paymentId" required>${unlinked.map(p=>`<option value="${esc(p.id)}">${fmtDate(p.date)} · ${brl(p.amount)} · ${esc(p.note||'Sem observação')}</option>`).join('')}</select></div><div class="field"><label>Locação correspondente</label><select name="rentalId" required>${state.rentals.filter(r=>pendingAmount(r)>0).map(r=>`<option value="${esc(r.id)}">${esc(r.client)} · falta ${brl(pendingAmount(r))}</option>`).join('')}</select></div><button class="btn">Vincular sem duplicar</button></form></div></div>`:''}`};
+const originalBind=bind;
+bind=function(){originalBind();document.querySelectorAll('[data-open-rental]').forEach(b=>b.onclick=()=>openRentalDetail(b.dataset.openRental));const pf=document.getElementById('payForm');if(pf)pf.addEventListener('submit',e=>{e.preventDefault();e.stopImmediatePropagation();const f=new FormData(pf),r=state.rentals.find(x=>x.id===f.get('rentalId')),amount=Number(f.get('amount'));if(!r||!Number.isFinite(amount)||amount<=0||amount>pendingAmount(r)+0.001){alert('Informe um valor válido, até o saldo pendente.');return}state.payments.push({id:uid(),rentalId:r.id,date:f.get('date'),amount,note:f.get('note')||''});save();render()},true);const lf=document.getElementById('linkPaymentForm');if(lf)lf.onsubmit=e=>{e.preventDefault();const f=new FormData(lf),p=state.payments.find(x=>x.id===f.get('paymentId')),r=state.rentals.find(x=>x.id===f.get('rentalId'));if(!p||!r||Number(p.amount)>pendingAmount(r)+0.001){alert('Pagamento maior que o saldo pendente ou seleção inválida.');return}if(!confirm('Vincular '+brl(p.amount)+' à locação de '+r.client+' sem adicionar novo recebimento?'))return;p.rentalId=r.id;save();render()}};
+// Re-renderiza após carregar a correção. Os dados existentes permanecem no mesmo localStorage.
+render();
+</script><script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script></body></html>
