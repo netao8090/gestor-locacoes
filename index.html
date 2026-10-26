@@ -6,7 +6,7 @@
 </style><script>
 if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(rs=>Promise.all(rs.map(r=>r.unregister()))).catch(()=>{});}
 if('caches' in window){caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('gestor-locacoes-')).map(k=>caches.delete(k)))).catch(()=>{});}
-</script></head><body><div id="app"><header class="topbar"><img class="brand-logo" src="logo.jpeg" alt="Batalha's Locações"><div class="top-actions"><button class="icon-btn" id="backupBtn" aria-label="Exportar dados">⇩</button><label class="icon-btn file-btn" aria-label="Importar dados">⇧<input id="restoreInput" type="file" accept="application/json"></label></div></header><main id="screen" class="screen"></main><nav class="bottom-nav" aria-label="Navegação principal"><button data-tab="home" class="nav-btn active"><span>⌂</span><small>Início</small></button><button data-tab="stock" class="nav-btn"><span>▣</span><small>Estoque</small></button><button data-tab="finance" class="nav-btn"><span>R$</span><small>Financeiro</small></button></nav></div><div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-card"><div class="modal-head"><h3 id="modalTitle"></h3><button class="icon-btn" id="closeModal">×</button></div><div id="modalBody"></div></div></div><script src="app.js?v=8"></script><script>
+</script></head><body><div id="app"><header class="topbar"><img class="brand-logo" src="logo.jpeg" alt="Batalha's Locações"><div class="top-actions"><button class="icon-btn" id="backupBtn" aria-label="Exportar dados">⇩</button><label class="icon-btn file-btn" aria-label="Importar dados">⇧<input id="restoreInput" type="file" accept="application/json"></label></div></header><main id="screen" class="screen"></main><nav class="bottom-nav" aria-label="Navegação principal"><button data-tab="home" class="nav-btn active"><span>⌂</span><small>Início</small></button><button data-tab="stock" class="nav-btn"><span>▣</span><small>Estoque</small></button><button data-tab="finance" class="nav-btn"><span>R$</span><small>Financeiro</small></button></nav></div><div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-card"><div class="modal-head"><h3 id="modalTitle"></h3><button class="icon-btn" id="closeModal">×</button></div><div id="modalBody"></div></div></div><script src="app.js?v=9"></script><script>
 // Correções não destrutivas para a versão original.
 const localDate=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const paidAmount=r=>state.payments.filter(p=>p.rentalId===r.id).reduce((s,p)=>s+Number(p.amount||0),0);
@@ -153,7 +153,7 @@ home=function(){
  const fabStart=rentalScreen.lastIndexOf('<button class="fab"');
  const sections=sectionStart>=0?rentalScreen.slice(sectionStart,fabStart>=0?fabStart:undefined):'';
  const cleaned=base.replace(/<div class="section"><div class="section-head"><h3>Resumo<\/h3>[\s\S]*?(?=<button class="fab")/,'').replace(/<button class="fab"[\s\S]*?<\/button>/g,'');
- return cleaned+`<div class="section"><div class="section-head"><h3>Suas locações</h3><button type="button" class="btn" data-add-rental>+ Nova locação</button></div><div class="muted">Toque em uma locação para ver itens, endereço, pagamento e recolhimento.</div></div>`+sections+`<button class="fab" data-add-rental>＋ Nova locação</button>`;
+ return cleaned+`<div class="section"><div class="section-head"><h3>Suas locações</h3></div><div class="muted">Toque em uma locação para ver itens, endereço, pagamento e recolhimento.</div></div>`+sections+`<button class="fab" data-add-rental>＋ Nova locação</button>`;
 };
 if(tab==='rentals')tab='home';
 closeModal();render();
@@ -203,4 +203,52 @@ document.addEventListener('click',function(e){
  const reset=e.target.closest('#v7ResetButton');
  if(reset){e.preventDefault();e.stopImmediatePropagation();v7ResetData();return}
 },true);
+</script><script>
+// V9: produtos "Outro" (ex.: geleira) nas locações, com estoque independente.
+const v9PreviousRentalForm=rentalForm;
+rentalForm=function(){
+ v9PreviousRentalForm();
+ const f=document.getElementById('rentalForm');if(!f)return;
+ const extras=state.products.filter(p=>p.type==='outro');
+ const grid=f.querySelector('.check-grid');
+ if(grid)for(const p of extras){
+  const row=document.createElement('div');row.className='check-row';
+  row.innerHTML=`<div class="item-left"><span class="emoji">${esc(p.emoji||'🧊')}</span><div><div class="name">${esc(p.name)}</div><div class="muted">${brl(p.price)} · estoque ${Number(p.stock||0)}</div></div></div><input type="number" min="0" step="1" value="0" name="qty_${esc(p.id)}">`;
+  grid.appendChild(row);
+ }
+ const calc=()=>{
+  const items=state.products.map(p=>({p,qty:Number(f.elements['qty_'+p.id]?.value||0)})).filter(x=>x.qty>0);
+  const base=items.reduce((v,x)=>v+x.qty*Number(x.p.price||0),0);
+  const d=days(f.pickup.value,f.returnDate.value),total=calcTotal(base,d);
+  const box=document.getElementById('calcBox');
+  if(box)box.innerHTML=`<div class="total-box"><div class="muted">Valor sugerido · ${d} dia(s) · +${surcharge(d)}%</div><div class="big">${brl(total)}</div></div>`;
+  const final=f.elements['finalTotal'];
+  if(final&&final.dataset.touched!=='1')final.value=total.toFixed(2);
+ };
+ f.querySelectorAll('input').forEach(input=>input.addEventListener('input',()=>{if(input.id==='finalTotal')input.dataset.touched='1';else calc()}));
+ f.addEventListener('change',calc);
+ f.onsubmit=e=>{
+  e.preventDefault();
+  const start=f.pickup.value,end=f.returnDate.value,address=String(f.elements['address']?.value||'').trim();
+  if(!address){alert('Informe o endereço da entrega.');return}
+  if(end<start){alert('A devolução não pode ser anterior à retirada.');return}
+  const items=state.products.map(p=>({productId:p.id,qty:Number(f.elements['qty_'+p.id]?.value||0)})).filter(x=>x.qty>0);
+  if(!items.length){alert('Escolha pelo menos um item.');return}
+  if(items.some(i=>!Number.isInteger(i.qty)||i.qty<1)){alert('Informe quantidades inteiras.');return}
+  const dem=demandFor(items),av=availableForPeriod(start,end);
+  if(dem.tables>av.tables||dem.chairs>av.chairs){alert('Estoque insuficiente: disponíveis '+av.tables+' mesas e '+av.chairs+' cadeiras neste período.');return}
+  for(const it of items){
+   const p=state.products.find(p=>p.id===it.productId);
+   if(p?.type!=='outro')continue;
+   const reserved=state.rentals.filter(r=>!r.actualReturn&&r.pickup<=end&&r.returnDate>=start).reduce((n,r)=>n+(r.items||[]).filter(i=>i.productId===p.id).reduce((a,i)=>a+Number(i.qty||0),0),0);
+   if(it.qty+reserved>Number(p.stock||0)){alert('Estoque insuficiente de '+p.name+'. Disponíveis: '+Math.max(0,Number(p.stock||0)-reserved));return}
+  }
+  const base=items.reduce((n,it)=>{const p=state.products.find(p=>p.id===it.productId);return n+it.qty*Number(p?.price||0)},0);
+  const total=Number(f.elements['finalTotal'].value);
+  if(!Number.isFinite(total)||total<0){alert('Informe um valor final válido.');return}
+  state.rentals.push({id:uid(),client:f.elements['client'].value.trim(),pickup:start,returnDate:end,address,items,baseTotal:base,suggestedTotal:calcTotal(base,days(start,end)),finalTotal:total,paid:0,actualReturn:null});
+  save();closeModal();render();
+ };
+ calc();
+};
 </script></body></html>
