@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0b0b0d"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Gestor de Locações"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icons/icon-192.png"><link rel="stylesheet" href="styles.css"><title>Gestor de Locações</title></head><body><div id="app"><header class="topbar"><img class="brand-logo" src="logo.jpeg" alt="Batalha's Locações"><div class="top-actions"><button class="icon-btn" id="backupBtn" aria-label="Exportar dados">⇩</button><label class="icon-btn file-btn" aria-label="Importar dados">⇧<input id="restoreInput" type="file" accept="application/json"></label></div></header><main id="screen" class="screen"></main><nav class="bottom-nav" aria-label="Navegação principal"><button data-tab="home" class="nav-btn active"><span>⌂</span><small>Início</small></button><button data-tab="stock" class="nav-btn"><span>▣</span><small>Estoque</small></button><button data-tab="rentals" class="nav-btn"><span>▤</span><small>Locações</small></button><button data-tab="finance" class="nav-btn"><span>R$</span><small>Financeiro</small></button></nav></div><div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-card"><div class="modal-head"><h3 id="modalTitle"></h3><button class="icon-btn" id="closeModal">×</button></div><div id="modalBody"></div></div></div><script src="app.js?v=3"></script><script>
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0b0b0d"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Gestor de Locações"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icons/icon-192.png"><link rel="stylesheet" href="styles.css"><title>Gestor de Locações</title></head><body><div id="app"><header class="topbar"><img class="brand-logo" src="logo.jpeg" alt="Batalha's Locações"><div class="top-actions"><button class="icon-btn" id="backupBtn" aria-label="Exportar dados">⇩</button><label class="icon-btn file-btn" aria-label="Importar dados">⇧<input id="restoreInput" type="file" accept="application/json"></label></div></header><main id="screen" class="screen"></main><nav class="bottom-nav" aria-label="Navegação principal"><button data-tab="home" class="nav-btn active"><span>⌂</span><small>Início</small></button><button data-tab="stock" class="nav-btn"><span>▣</span><small>Estoque</small></button><button data-tab="rentals" class="nav-btn"><span>▤</span><small>Locações</small></button><button data-tab="finance" class="nav-btn"><span>R$</span><small>Financeiro</small></button></nav></div><div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div class="modal-card"><div class="modal-head"><h3 id="modalTitle"></h3><button class="icon-btn" id="closeModal">×</button></div><div id="modalBody"></div></div></div><script src="app.js?v=4"></script><script>
 // Correções não destrutivas para a versão original.
 const localDate=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const paidAmount=r=>state.payments.filter(p=>p.rentalId===r.id).reduce((s,p)=>s+Number(p.amount||0),0);
@@ -19,4 +19,80 @@ const originalBind=bind;
 bind=function(){originalBind();document.querySelectorAll('.nav-btn').forEach(b=>{const previous=b.onclick;b.onclick=()=>{closeModal();previous?.()}});document.querySelectorAll('[data-open-rental]').forEach(b=>b.onclick=()=>openRentalDetail(b.dataset.openRental));const pf=document.getElementById('payForm');if(pf)pf.addEventListener('submit',e=>{e.preventDefault();e.stopImmediatePropagation();const f=new FormData(pf),r=state.rentals.find(x=>x.id===f.get('rentalId')),amount=Number(f.get('amount'));if(!r||!Number.isFinite(amount)||amount<=0||amount>pendingAmount(r)+0.001){alert('Informe um valor válido, até o saldo pendente.');return}state.payments.push({id:uid(),rentalId:r.id,date:f.get('date'),amount,note:f.get('note')||''});save();render()},true);const lf=document.getElementById('linkPaymentForm');if(lf)lf.onsubmit=e=>{e.preventDefault();const f=new FormData(lf),p=state.payments.find(x=>x.id===f.get('paymentId')),r=state.rentals.find(x=>x.id===f.get('rentalId'));if(!p||!r||Number(p.amount)>pendingAmount(r)+0.001){alert('Pagamento maior que o saldo pendente ou seleção inválida.');return}if(!confirm('Vincular '+brl(p.amount)+' à locação de '+r.client+' sem adicionar novo recebimento?'))return;p.rentalId=r.id;save();render()}};
 // Re-renderiza após carregar a correção. Os dados existentes permanecem no mesmo localStorage.
 closeModal();render();
+</script><script>
+
+// V4: acompanhamento, fechamento, endereço e relatório mensal.
+const v4Done=r=>Boolean(r.actualReturn)&&pendingAmount(r)<0.005;
+const v4Items=r=>(r.items||[]).map(it=>{const p=state.products.find(x=>x.id===it.productId);return {name:p?.name||'Item não cadastrado',type:p?.type||'',qty:Number(it.qty||0)}}).filter(x=>x.qty>0);
+const v4Summary=r=>v4Items(r).map(x=>`${x.qty} ${x.name}`).join(' · ')||'Itens não informados';
+const v4Safe=s=>esc(String(s??''));
+const v4OriginalRentalForm=rentalForm;
+rentalForm=function(){
+  v4OriginalRentalForm();
+  const form=document.getElementById('rentalForm');if(!form)return;
+  const box=document.createElement('div');box.className='field';
+  box.innerHTML='<label>Endereço da entrega</label><input name="address" placeholder="Rua, número, bairro e referência" required autocomplete="street-address">';
+  const target=form.querySelector('.section');if(target)form.insertBefore(box,target);else form.prepend(box);
+  const originalSubmit=form.onsubmit;
+  form.onsubmit=function(e){
+    const address=form.elements['address'].value.trim();
+    if(!address){e.preventDefault();alert('Informe o endereço da entrega.');return}
+    const ids=new Set(state.rentals.map(r=>r.id));
+    originalSubmit.call(form,e);
+    const added=state.rentals.find(r=>!ids.has(r.id));
+    if(added){added.address=address;save()}
+  };
+};
+const v4OldDetail=openRentalDetail;
+openRentalDetail=function(id){
+  v4OldDetail(id);
+  const r=state.rentals.find(x=>x.id===id);if(!r)return;
+  const body=document.getElementById('modalBody');
+  const detail=document.createElement('div');
+  detail.className='card';
+  const addr=r.address?`<div class="muted" style="margin-top:8px">📍 ${v4Safe(r.address)}</div><a class="small-btn" style="display:inline-block;margin-top:8px" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.address)}">Abrir no Maps</a>`:'<div class="muted" style="margin-top:8px">Endereço não informado nesta locação antiga</div>';
+  detail.innerHTML=`<div class="name">Itens alugados</div>${v4Items(r).map(x=>`<div class="spaced" style="margin-top:8px"><span>${v4Safe(x.name)}</span><strong>${x.qty}</strong></div>`).join('')||'<div class="muted">Sem itens registrados</div>'}${addr}<div class="muted" style="margin-top:10px">Situação: ${v4Done(r)?'✓ Finalizada':r.actualReturn?'Recolhida · pagamento pendente':pendingAmount(r)<0.005?'Paga · aguardando recolhimento':'Em aberto'}</div>`;
+  body.insertBefore(detail,body.firstChild);
+};
+const v4OldRentals=rentals;
+rentals=function(){
+  const open=state.rentals.filter(r=>!v4Done(r)).slice().reverse();
+  const closed=state.rentals.filter(v4Done).slice().reverse();
+  const card=r=>`<button type="button" data-open-rental="${v4Safe(r.id)}" class="card" style="width:100%;text-align:left;color:inherit;cursor:pointer;font:inherit"><div class="row"><div><div class="name">${v4Safe(r.client)}</div><div class="muted">${fmtDate(r.pickup)} → ${fmtDate(r.returnDate)}</div><div class="muted">${v4Safe(v4Summary(r))}</div></div><div style="text-align:right"><div class="price">${brl(r.finalTotal)}</div><span class="pill ${v4Done(r)?'green':'yellow'}">${v4Done(r)?'Finalizada':r.actualReturn?'Recolhida':pendingAmount(r)<0.005?'Paga':'Em aberto'}</span></div></div></button>`;
+  return `<section class="hero"><div><div class="title">Locações</div><div class="sub">Toque na locação para ver os itens, endereço e andamento.</div></div><button class="btn" data-add-rental>+ Nova</button></section><div class="section"><h3>Em aberto (${open.length})</h3><div class="list">${open.map(card).join('')||'<div class="empty">Nenhuma locação em aberto.</div>'}</div></div><div class="section"><h3>Finalizadas (${closed.length})</h3><div class="list">${closed.map(card).join('')||'<div class="muted">Nenhuma locação finalizada ainda.</div>'}</div></div><button class="fab" data-add-rental>＋ Nova locação</button>`;
+};
+const v4OldHome=home;
+home=function(){
+  const h=v4OldHome();
+  const count=state.rentals.filter(r=>!v4Done(r)).length;
+  return h.replace(/(<div class="label">Locações abertas<\/div><div class="num">)\d+(<\/div>)/,`$1${count}$2`);
+};
+const v4MonthLabel=m=>{const [y,mo]=m.split('-');return new Date(Number(y),Number(mo)-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'})};
+const v4Month=()=>localDate().slice(0,7);
+let v4SelectedMonth=v4Month();
+finance=function(){
+ const months=new Set([v4Month(),...state.rentals.map(r=>r.pickup?.slice(0,7)),...state.payments.map(p=>p.date?.slice(0,7)),...state.expenses.map(p=>p.date?.slice(0,7))].filter(x=>/^\d{4}-\d{2}$/.test(x)));
+ const m=v4SelectedMonth;
+ const rs=state.rentals.filter(r=>r.pickup?.startsWith(m));
+ const ps=state.payments.filter(p=>p.date?.startsWith(m));
+ const ex=state.expenses.filter(p=>p.date?.startsWith(m));
+ const received=ps.reduce((a,p)=>a+Number(p.amount||0),0),spent=ex.reduce((a,p)=>a+Number(p.amount||0),0);
+ const outstanding=state.rentals.reduce((a,r)=>a+pendingAmount(r),0);
+ const totals=rs.reduce((a,r)=>{for(const it of v4Items(r)){if(it.type==='jogo')a.games+=it.qty;else if(it.type==='mesa')a.tables+=it.qty;else if(it.type==='cadeira')a.chairs+=it.qty}return a},{games:0,tables:0,chairs:0});
+ return `<section class="hero"><div><div class="title">Financeiro</div><div class="sub">Resumo e histórico mensal</div></div><button type="button" class="btn" data-add-expense>+ Despesa</button></section><div class="field"><label>Mês do relatório</label><select id="v4Month">${[...months].sort().reverse().map(x=>`<option value="${x}" ${x===m?'selected':''}>${v4MonthLabel(x)}</option>`).join('')}</select></div><div class="grid"><div class="card metric"><div class="label">Recebido no mês</div><div class="num">${brl(received)}</div></div><div class="card metric"><div class="label">A receber (total)</div><div class="num">${brl(outstanding)}</div></div><div class="card metric"><div class="label">Despesas no mês</div><div class="num">${brl(spent)}</div></div><div class="card metric"><div class="label">Resultado no mês</div><div class="num">${brl(received-spent)}</div></div></div><div class="section"><h3>Relatório de locações · ${v4MonthLabel(m)}</h3><div class="card"><div class="spaced"><span>Locações cadastradas</span><strong>${rs.length}</strong></div><div class="spaced"><span>Jogos completos</span><strong>${totals.games}</strong></div><div class="spaced"><span>Mesas avulsas</span><strong>${totals.tables}</strong></div><div class="spaced"><span>Cadeiras avulsas</span><strong>${totals.chairs}</strong></div><div class="spaced"><span>Valor contratado</span><strong>${brl(rs.reduce((a,r)=>a+Number(r.finalTotal||0),0))}</strong></div></div><div class="list" style="margin-top:12px">${rs.slice().reverse().map(r=>`<button type="button" class="card" data-open-rental="${v4Safe(r.id)}" style="width:100%;text-align:left;color:inherit;font:inherit;cursor:pointer"><div class="spaced"><strong>${v4Safe(r.client)}</strong><strong>${brl(r.finalTotal)}</strong></div><div class="muted">${fmtDate(r.pickup)} · ${v4Safe(v4Summary(r))}</div><div class="muted">${v4Done(r)?'Finalizada':'Em aberto'}</div></button>`).join('')||'<div class="empty">Nenhuma locação neste mês.</div>'}</div></div>`;
+};
+const v4OldBind=bind;
+bind=function(){
+ v4OldBind();
+ const monthSelect=document.getElementById('v4Month');
+ if(monthSelect)monthSelect.onchange=()=>{v4SelectedMonth=monthSelect.value;render()};
+ document.querySelectorAll('.nav-btn').forEach(b=>{
+  const old=b.onclick;
+  b.onclick=()=>{closeModal();document.getElementById('modalBody').innerHTML='';old?.();closeModal()};
+ });
+};
+const v4OldRender=render;
+render=function(){if(tab==='finance'){closeModal();document.getElementById('modalBody').innerHTML=''}v4OldRender()};
+closeModal();render();
+
 </script><script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}</script></body></html>
